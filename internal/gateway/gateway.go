@@ -162,7 +162,25 @@ func (gateway *Gateway) handleVersionCheck(client *connection.Client, req *proto
 	if err != nil {
 		return err
 	}
-	return client.Send(msg)
+	return client.Send(gateway.clientAddress(msg))
+}
+
+// clientAddress points the gateway and proxy fields of an upstream SC_10801
+// at this server. Some regions' official gateways name their servers by IP
+// (TW: 139.95.1.134:10080, proxy 128.1.32.232:10080) instead of a hostname:
+// relayed unchanged, the client follows them to production and --server-host
+// never applies. The rest of the reply (version, CDN lists) stays upstream.
+func (gateway *Gateway) clientAddress(msg *protobuf.SC_10801) *protobuf.SC_10801 {
+	if len(gateway.Servers) == 0 {
+		return msg
+	}
+	server := gateway.Servers[0]
+	msg = proto.Clone(msg).(*protobuf.SC_10801)
+	msg.GatewayIp = proto.String(server.Host)
+	msg.GatewayPort = proto.Uint32(server.Port)
+	msg.ProxyIp = proto.String(server.Host)
+	msg.ProxyPort = proto.Uint32(server.Port)
+	return msg
 }
 
 //belfast:static
